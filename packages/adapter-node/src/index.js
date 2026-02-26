@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { unlink } from 'fs/promises';
 
 export const path = env('SOCKET_PATH', false);
-export const umask = env('SOCKET_UMASK', null);
+export const umask = env('UMASK', null);
 export const host = env('HOST', '0.0.0.0');
 export const port = env('PORT', !path && '3000');
 
