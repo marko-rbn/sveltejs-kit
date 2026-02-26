@@ -3,8 +3,11 @@ import process from 'node:process';
 import { handler } from 'HANDLER';
 import { env, timeout_env } from 'ENV';
 import polka from 'polka';
+import fs from 'node:fs';
+import { unlink } from 'fs/promises';
 
 export const path = env('SOCKET_PATH', false);
+export const umask = env('SOCKET_UMASK', null);
 export const host = env('HOST', '0.0.0.0');
 export const port = env('PORT', !path && '3000');
 
@@ -49,6 +52,15 @@ if (headers_timeout !== undefined) {
 	httpServer.headersTimeout = headers_timeout * 1000;
 }
 
+if (umask !== null) {
+	try {
+		process.umask(Number(umask));
+		console.log(`Umask set to ${umask}`);
+	} catch (err) {
+		console.warn(`Failed to set umask: ${err.message}`);
+	}
+}
+
 const server = polka({ server: httpServer }).use(handler);
 
 if (socket_activation) {
@@ -56,8 +68,20 @@ if (socket_activation) {
 		console.log(`Listening on file descriptor ${SD_LISTEN_FDS_START}`);
 	});
 } else {
+	if (path) {
+		try {
+			await unlink(path);
+			console.log('Stale socket file deleted: ', path);  // socket file existed, and we deleted it
+		} catch (err) {
+			if (err.code !== 'ENOENT') throw err; // ignore if file doesn't exist
+		}
+	}
 	server.listen({ path, host, port }, () => {
 		console.log(`Listening on ${path || `http://${host}:${port}`}`);
+		if (path) {
+			const perms = (fs.statSync(path).mode & 0o777).toString(8).padStart(3, '0');
+			console.log(`Verified socket file permissions: ${perms}`);
+		}
 	});
 }
 
